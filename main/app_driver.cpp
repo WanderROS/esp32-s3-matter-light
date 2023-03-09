@@ -13,8 +13,18 @@
 #include <device.h>
 #include <esp_matter.h>
 #include <led_driver.h>
+#include <app_priv.h>
+#include <esp_err.h>
+#include <esp_log.h>
+#include <nvs_flash.h>
+#include "driver/uart.h"
+#include "driver/gpio.h"
+#include <esp_matter.h>
+#include <esp_matter_console.h>
+#include <esp_matter_ota.h>
 
 #include <app_priv.h>
+#include <app_reset.h>
 
 using namespace chip::app::Clusters;
 using namespace esp_matter;
@@ -22,9 +32,19 @@ using namespace esp_matter;
 static const char *TAG = "app_driver";
 extern uint16_t light_endpoint_id;
 
+char command_on[65] = {0xAA, 0x40, 0xDB, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x02, 0x02, 0x01, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0x14};
+char command_off[65] = {0xAA, 0x40, 0xDB, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x02, 0x02, 0x00, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0x15};
 /* Do any conversions/remapping for the actual value here */
 static esp_err_t app_driver_light_set_power(led_driver_handle_t handle, esp_matter_attr_val_t *val)
 {
+    if (val->val.b == 1)
+    {
+        uart_write_bytes(UART_NUM_1, (const char *)command_on, 65);
+    }
+    else
+    {
+        uart_write_bytes(UART_NUM_1, (const char *)command_off, 65);
+    }
     return led_driver_set_power(handle, val->val.b);
 }
 
@@ -74,22 +94,35 @@ esp_err_t app_driver_attribute_update(app_driver_handle_t driver_handle, uint16_
                                       uint32_t attribute_id, esp_matter_attr_val_t *val)
 {
     esp_err_t err = ESP_OK;
-    if (endpoint_id == light_endpoint_id) {
+    if (endpoint_id == light_endpoint_id)
+    {
         led_driver_handle_t handle = (led_driver_handle_t)driver_handle;
-        if (cluster_id == OnOff::Id) {
-            if (attribute_id == OnOff::Attributes::OnOff::Id) {
+        if (cluster_id == OnOff::Id)
+        {
+            if (attribute_id == OnOff::Attributes::OnOff::Id)
+            {
                 err = app_driver_light_set_power(handle, val);
             }
-        } else if (cluster_id == LevelControl::Id) {
-            if (attribute_id == LevelControl::Attributes::CurrentLevel::Id) {
+        }
+        else if (cluster_id == LevelControl::Id)
+        {
+            if (attribute_id == LevelControl::Attributes::CurrentLevel::Id)
+            {
                 err = app_driver_light_set_brightness(handle, val);
             }
-        } else if (cluster_id == ColorControl::Id) {
-            if (attribute_id == ColorControl::Attributes::CurrentHue::Id) {
+        }
+        else if (cluster_id == ColorControl::Id)
+        {
+            if (attribute_id == ColorControl::Attributes::CurrentHue::Id)
+            {
                 err = app_driver_light_set_hue(handle, val);
-            } else if (attribute_id == ColorControl::Attributes::CurrentSaturation::Id) {
+            }
+            else if (attribute_id == ColorControl::Attributes::CurrentSaturation::Id)
+            {
                 err = app_driver_light_set_saturation(handle, val);
-            } else if (attribute_id == ColorControl::Attributes::ColorTemperatureMireds::Id) {
+            }
+            else if (attribute_id == ColorControl::Attributes::ColorTemperatureMireds::Id)
+            {
                 err = app_driver_light_set_temperature(handle, val);
             }
         }
@@ -118,7 +151,8 @@ esp_err_t app_driver_light_set_defaults(uint16_t endpoint_id)
     cluster = cluster::get(endpoint, ColorControl::Id);
     attribute = attribute::get(cluster, ColorControl::Attributes::ColorMode::Id);
     attribute::get_val(attribute, &val);
-    if (val.val.u8 == EMBER_ZCL_COLOR_MODE_CURRENT_HUE_AND_CURRENT_SATURATION) {
+    if (val.val.u8 == EMBER_ZCL_COLOR_MODE_CURRENT_HUE_AND_CURRENT_SATURATION)
+    {
         /* Setting hue */
         attribute = attribute::get(cluster, ColorControl::Attributes::CurrentHue::Id);
         attribute::get_val(attribute, &val);
@@ -127,12 +161,16 @@ esp_err_t app_driver_light_set_defaults(uint16_t endpoint_id)
         attribute = attribute::get(cluster, ColorControl::Attributes::CurrentSaturation::Id);
         attribute::get_val(attribute, &val);
         err |= app_driver_light_set_saturation(handle, &val);
-    } else if (val.val.u8 == EMBER_ZCL_COLOR_MODE_COLOR_TEMPERATURE) {
+    }
+    else if (val.val.u8 == EMBER_ZCL_COLOR_MODE_COLOR_TEMPERATURE)
+    {
         /* Setting temperature */
         attribute = attribute::get(cluster, ColorControl::Attributes::ColorTemperatureMireds::Id);
         attribute::get_val(attribute, &val);
         err |= app_driver_light_set_temperature(handle, &val);
-    } else {
+    }
+    else
+    {
         ESP_LOGE(TAG, "Color mode not supported");
     }
 

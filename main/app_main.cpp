@@ -9,7 +9,8 @@
 #include <esp_err.h>
 #include <esp_log.h>
 #include <nvs_flash.h>
-
+#include "driver/uart.h"
+#include "driver/gpio.h"
 #include <esp_matter.h>
 #include <esp_matter_console.h>
 #include <esp_matter_ota.h>
@@ -27,7 +28,8 @@ using namespace chip::app::Clusters;
 
 static void app_event_cb(const ChipDeviceEvent *event, intptr_t arg)
 {
-    switch (event->Type) {
+    switch (event->Type)
+    {
     case chip::DeviceLayer::DeviceEventType::kInterfaceIpAddressChanged:
         ESP_LOGI(TAG, "Interface IP Address changed");
         break;
@@ -73,7 +75,8 @@ static esp_err_t app_attribute_update_cb(attribute::callback_type_t type, uint16
 {
     esp_err_t err = ESP_OK;
 
-    if (type == PRE_UPDATE) {
+    if (type == PRE_UPDATE)
+    {
         /* Driver update */
         app_driver_handle_t driver_handle = (app_driver_handle_t)priv_data;
         err = app_driver_attribute_update(driver_handle, endpoint_id, cluster_id, attribute_id, val);
@@ -82,13 +85,36 @@ static esp_err_t app_attribute_update_cb(attribute::callback_type_t type, uint16
     return err;
 }
 
+#define ECHO_TEST_TXD (18)
+#define ECHO_TEST_RXD (17)
+#define ECHO_TEST_RTS (19)
+#define ECHO_TEST_CTS (20)
+#define BUF_SIZE (1024)
+void uart1_init()
+{
+    const uart_port_t uart_num = UART_NUM_1;
+    uart_config_t uart_config = {
+        .baud_rate = 9600,
+        .data_bits = UART_DATA_8_BITS,
+        .parity = UART_PARITY_DISABLE,
+        .stop_bits = UART_STOP_BITS_1,
+        .flow_ctrl = UART_HW_FLOWCTRL_DISABLE,
+        .rx_flow_ctrl_thresh = 122,
+    };
+    // Configure UART parameters
+    ESP_ERROR_CHECK(uart_param_config(uart_num, &uart_config));
+    int intr_alloc_flags = 0;
+    ESP_ERROR_CHECK(uart_driver_install(uart_num, BUF_SIZE * 2, 0, 0, NULL, intr_alloc_flags));
+    ESP_ERROR_CHECK(uart_set_pin(uart_num, ECHO_TEST_TXD, ECHO_TEST_RXD, ECHO_TEST_RTS, ECHO_TEST_CTS));
+}
+
 extern "C" void app_main()
 {
     esp_err_t err = ESP_OK;
 
     /* Initialize the ESP NVS layer */
     nvs_flash_init();
-
+    uart1_init();
     /* Initialize driver */
     app_driver_handle_t light_handle = app_driver_light_init();
     app_driver_handle_t button_handle = app_driver_button_init();
@@ -109,7 +135,8 @@ extern "C" void app_main()
     endpoint_t *endpoint = color_temperature_light::create(node, &light_config, ENDPOINT_FLAG_NONE, light_handle);
 
     /* These node and endpoint handles can be used to create/add other endpoints and clusters. */
-    if (!node || !endpoint) {
+    if (!node || !endpoint)
+    {
         ESP_LOGE(TAG, "Matter node creation failed");
     }
 
@@ -125,7 +152,8 @@ extern "C" void app_main()
 
     /* Matter start */
     err = esp_matter::start(app_event_cb);
-    if (err != ESP_OK) {
+    if (err != ESP_OK)
+    {
         ESP_LOGE(TAG, "Matter start failed: %d", err);
     }
 
