@@ -87,8 +87,8 @@ static esp_err_t app_attribute_update_cb(attribute::callback_type_t type, uint16
 
 #define ECHO_TEST_TXD (18)
 #define ECHO_TEST_RXD (17)
-#define ECHO_TEST_RTS (19)
-#define ECHO_TEST_CTS (20)
+#define ECHO_TEST_RTS (UART_PIN_NO_CHANGE)
+#define ECHO_TEST_CTS (UART_PIN_NO_CHANGE)
 #define BUF_SIZE (1024)
 void uart1_init()
 {
